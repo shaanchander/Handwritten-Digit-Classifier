@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torchvision import transforms
+from PIL import Image
 
 
 MNIST_MEAN = (0.1307,)
@@ -68,3 +69,12 @@ def get_predict_transform() -> transforms.Compose:
 		transforms.ToTensor(),
 		transforms.Normalize(MNIST_MEAN, MNIST_STD),
 	])
+
+
+def prepare_prediction_image(image: Image.Image) -> torch.Tensor:
+	image = image.convert("L")
+	image = image.resize((28, 28))
+	image_tensor = transforms.ToTensor()(image)
+	if image_tensor.mean() > 0.5:
+		image_tensor = 1.0 - image_tensor
+	return transforms.Normalize(MNIST_MEAN, MNIST_STD)(image_tensor)

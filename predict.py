@@ -3,19 +3,17 @@ from PIL import Image
 
 import torch
 
-from functions import DigitClassifier, DigitCNN, get_device, get_predict_transform
+from functions import (
+    DigitClassifier,
+    DigitCNN,
+    get_device,
+    prepare_prediction_image,
+)
 
 
 def load_image(path: str) -> torch.Tensor:
-    transform = get_predict_transform()
-
     image = Image.open(path)
-    image = transform(image)
-
-    # If input image is black digit on white, invert it (MNIST is white digit on black background)
-    if image.mean() > 0.5:
-        image = 1.0 - image
-
+    image = prepare_prediction_image(image)
     return image.unsqueeze(0)  # add batch dimension
 
 
