@@ -74,7 +74,6 @@ def build_loaders(batch_size: int) -> tuple[DataLoader, DataLoader]:
 
 
 def main() -> None:
-    torch.manual_seed(42)
 
     device = get_device()
     print(f"Using device: {device}")
