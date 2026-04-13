@@ -9,7 +9,7 @@ from functions import DigitClassifier, get_device, get_mnist_transform
 EPOCHS = 5
 BATCH_SIZE = 64
 LEARNING_RATE = 1e-3
-SAVE_PATH = "model.pt"
+SAVE_PATH = "model-fcnn.pt"
 
 
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer, device: torch.device) -> tuple[float, float]:
