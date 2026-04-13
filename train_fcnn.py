@@ -1,36 +1,15 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+from torchvision import datasets
+
+from functions import DigitClassifier, get_device, get_mnist_transform
 
 
 EPOCHS = 5
 BATCH_SIZE = 64
 LEARNING_RATE = 1e-3
 SAVE_PATH = "model.pt"
-
-
-class DigitClassifier(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(28 * 28, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, 10),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
-
-
-def get_device() -> torch.device:
-    if torch.backends.mps.is_available(): return torch.device("mps")
-    if torch.cuda.is_available(): return torch.device("cuda")
-    
-    return torch.device("cpu")
 
 
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer, device: torch.device) -> tuple[float, float]:
@@ -83,7 +62,7 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, device: t
 
 
 def build_loaders(batch_size: int) -> tuple[DataLoader, DataLoader]:
-    transform = transforms.ToTensor()
+    transform = get_mnist_transform()
 
     train_dataset = datasets.MNIST(root="data", train=True, transform=transform, download=True)
     test_dataset = datasets.MNIST(root="data", train=False, transform=transform, download=True)
