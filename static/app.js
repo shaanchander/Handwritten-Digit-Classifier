@@ -3,10 +3,8 @@ const context = canvas.getContext("2d");
 const modelTypeSelect = document.getElementById("modelType");
 const predictBtn = document.getElementById("predictBtn");
 const clearBtn = document.getElementById("clearBtn");
-const predictionEl = document.getElementById("prediction");
-const confidenceEl = document.getElementById("confidence");
 const statusEl = document.getElementById("status");
-const barsEl = document.getElementById("bars");
+const resultsGridEl = document.getElementById("resultsGrid");
 
 let drawing = false;
 
@@ -56,10 +54,8 @@ function stopDrawing() {
 
 function clearCanvas() {
   resizeCanvas();
-  predictionEl.textContent = "-";
-  confidenceEl.textContent = "-";
   statusEl.textContent = "Ready.";
-  barsEl.innerHTML = "";
+  renderPlaceholder();
 }
 
 function isCanvasBlank() {
@@ -72,33 +68,96 @@ function isCanvasBlank() {
   return true;
 }
 
-function renderBars(probabilities) {
-  barsEl.innerHTML = "";
+function renderPlaceholder() {
+  resultsGridEl.innerHTML = "";
+}
 
-  probabilities.forEach((value, digit) => {
-    const row = document.createElement("div");
-    row.className = "bar-row";
+function createMetric(labelText, valueText) {
+  const block = document.createElement("div");
 
-    const label = document.createElement("div");
-    label.textContent = digit;
+  const label = document.createElement("p");
+  label.className = "label";
+  label.textContent = labelText;
 
-    const track = document.createElement("div");
-    track.className = "bar-track";
+  const value = document.createElement("div");
+  value.className = "metric-value";
+  value.textContent = valueText;
 
-    const fill = document.createElement("div");
-    fill.className = "bar-fill";
-    fill.style.width = `${Math.max(value * 100, 1)}%`;
-    track.appendChild(fill);
+  block.appendChild(label);
+  block.appendChild(value);
+  return block;
+}
 
-    const amount = document.createElement("div");
-    amount.className = "bar-value";
-    amount.textContent = `${(value * 100).toFixed(1)}%`;
+function createDistributionChart(probabilities) {
+  const chart = document.createElement("div");
+  chart.className = "dist-chart";
 
-    row.appendChild(label);
-    row.appendChild(track);
-    row.appendChild(amount);
-    barsEl.appendChild(row);
+  probabilities.forEach((probability, digit) => {
+    const col = document.createElement("div");
+    col.className = "dist-col";
+
+    const pct = document.createElement("div");
+    pct.className = "dist-pct";
+    pct.textContent = `${(probability * 100).toFixed(0)}%`;
+
+    const barWrap = document.createElement("div");
+    barWrap.className = "dist-bar-wrap";
+
+    const bar = document.createElement("div");
+    bar.className = "dist-bar";
+    bar.style.height = `${Math.max(probability * 100, 2)}%`;
+    barWrap.appendChild(bar);
+
+    const digitLabel = document.createElement("div");
+    digitLabel.className = "dist-digit";
+    digitLabel.textContent = String(digit);
+
+    col.appendChild(pct);
+    col.appendChild(barWrap);
+    col.appendChild(digitLabel);
+    chart.appendChild(col);
   });
+
+  return chart;
+}
+
+function renderModelResult(modelLabel, result) {
+  const card = document.createElement("section");
+  card.className = "result-card";
+
+  const header = document.createElement("div");
+  header.className = "result-card-header";
+
+  const chip = document.createElement("div");
+  chip.className = "model-chip";
+  chip.textContent = modelLabel;
+  header.appendChild(chip);
+
+  const metrics = document.createElement("div");
+  metrics.className = "metric-row";
+  metrics.appendChild(createMetric("Prediction", String(result.prediction)));
+  metrics.appendChild(createMetric("Confidence", `${(result.confidence * 100).toFixed(1)}%`));
+
+  card.appendChild(header);
+  card.appendChild(metrics);
+  card.appendChild(createDistributionChart(result.probabilities));
+  return card;
+}
+
+async function requestPrediction(modelType, imageData) {
+  const response = await fetch(`/predict/${modelType}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ image: imageData }),
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.detail || "Prediction failed");
+  }
+  return result;
 }
 
 async function predict() {
@@ -111,24 +170,23 @@ async function predict() {
   statusEl.textContent = "Running inference...";
 
   try {
-    const response = await fetch(`/predict/${modelTypeSelect.value}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ image: canvas.toDataURL("image/png") }),
-    });
+    const imageData = canvas.toDataURL("image/png");
+    const modelType = modelTypeSelect.value;
+    resultsGridEl.innerHTML = "";
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.detail || "Prediction failed");
+    if (modelType === "both") {
+      const [cnnResult, fcnnResult] = await Promise.all([
+        requestPrediction("cnn", imageData),
+        requestPrediction("fcnn", imageData),
+      ]);
+      resultsGridEl.appendChild(renderModelResult("CNN", cnnResult));
+      resultsGridEl.appendChild(renderModelResult("FCNN", fcnnResult));
+    } else {
+      const result = await requestPrediction(modelType, imageData);
+      const label = modelType === "cnn" ? "CNN" : "FCNN";
+      resultsGridEl.appendChild(renderModelResult(label, result));
     }
-
-    predictionEl.textContent = result.prediction;
-    confidenceEl.textContent = `${(result.confidence * 100).toFixed(1)}%`;
-    statusEl.textContent = "Prediction complete.";
-    renderBars(result.probabilities);
+    statusEl.textContent = "Ready.";
   } catch (error) {
     statusEl.textContent = error.message;
   } finally {
@@ -148,3 +206,4 @@ predictBtn.addEventListener("click", predict);
 clearBtn.addEventListener("click", clearCanvas);
 
 resizeCanvas();
+renderPlaceholder();

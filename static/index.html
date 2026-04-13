@@ -9,11 +9,7 @@
 <body>
   <main class="app-shell">
     <section class="hero">
-      <div>
-        <p class="eyebrow">Local MNIST inference</p>
-        <h1>Draw a digit. Get a prediction.</h1>
-      </div>
-      <p class="subhead">Runs locally in your browser from the same FastAPI server.</p>
+      <h1>Handwritten Digit Prediction</h1>
     </section>
 
     <div class="content-grid">
@@ -24,6 +20,7 @@
             <select id="modelType">
               <option value="cnn">CNN</option>
               <option value="fcnn">FCNN</option>
+              <option value="both">Both</option>
             </select>
           </label>
           <div class="actions">
@@ -39,18 +36,8 @@
       </section>
 
       <section class="panel results">
-        <div class="result-header">
-          <div>
-            <p class="label">Prediction</p>
-            <div id="prediction" class="prediction">-</div>
-          </div>
-          <div>
-            <p class="label">Confidence</p>
-            <div id="confidence" class="confidence">-</div>
-          </div>
-        </div>
         <div id="status" class="status">Ready.</div>
-        <div id="bars" class="bars"></div>
+        <div id="resultsGrid" class="results-grid"></div>
       </section>
     </div>
   </main>
