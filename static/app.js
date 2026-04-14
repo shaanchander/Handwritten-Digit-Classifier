@@ -5,16 +5,71 @@ const predictBtn = document.getElementById("predictBtn");
 const clearBtn = document.getElementById("clearBtn");
 const statusEl = document.getElementById("status");
 const resultsGridEl = document.getElementById("resultsGrid");
+const themeToggleBtn = document.getElementById("theme-toggle") || document.getElementById("themeToggle");
+const darkSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 let drawing = false;
+let currentTheme = "light";
+let userOverrodeTheme = false;
+
+function setTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute("data-theme", theme);
+  if (themeToggleBtn) {
+    const isDark = theme === "dark";
+    themeToggleBtn.setAttribute("aria-pressed", String(isDark));
+    themeToggleBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeToggleBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+}
+
+function getCanvasPalette() {
+  if (currentTheme === "dark") {
+    return {
+      background: "#000000",
+      stroke: "#ffffff",
+      blankThreshold: 5,
+      blankComparator: "gt",
+    };
+  }
+
+  return {
+    background: "#ffffff",
+    stroke: "#111111",
+    blankThreshold: 250,
+    blankComparator: "lt",
+  };
+}
 
 function resizeCanvas() {
-  context.fillStyle = "#ffffff";
+  const palette = getCanvasPalette();
+  context.fillStyle = palette.background;
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.lineCap = "round";
   context.lineJoin = "round";
-  context.strokeStyle = "#111111";
+  context.strokeStyle = palette.stroke;
   context.lineWidth = 24;
+}
+
+function updateCanvasDrawingStyles() {
+  const palette = getCanvasPalette();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.strokeStyle = palette.stroke;
+  context.lineWidth = 24;
+}
+
+function invertCanvasPixels() {
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+
+  for (let index = 0; index < pixels.length; index += 4) {
+    pixels[index] = 255 - pixels[index];
+    pixels[index + 1] = 255 - pixels[index + 1];
+    pixels[index + 2] = 255 - pixels[index + 2];
+  }
+
+  context.putImageData(imageData, 0, 0);
 }
 
 function getPoint(event) {
@@ -59,13 +114,50 @@ function clearCanvas() {
 }
 
 function isCanvasBlank() {
+  const palette = getCanvasPalette();
   const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
   for (let index = 0; index < pixels.length; index += 4) {
-    if (pixels[index] < 250 || pixels[index + 1] < 250 || pixels[index + 2] < 250) {
+    if (palette.blankComparator === "lt") {
+      if (
+        pixels[index] < palette.blankThreshold ||
+        pixels[index + 1] < palette.blankThreshold ||
+        pixels[index + 2] < palette.blankThreshold
+      ) {
+        return false;
+      }
+    } else if (
+      pixels[index] > palette.blankThreshold ||
+      pixels[index + 1] > palette.blankThreshold ||
+      pixels[index + 2] > palette.blankThreshold
+    ) {
       return false;
     }
   }
   return true;
+}
+
+function getImageForPrediction() {
+  if (currentTheme !== "dark") {
+    return canvas.toDataURL("image/png");
+  }
+
+  const offscreenCanvas = document.createElement("canvas");
+  offscreenCanvas.width = canvas.width;
+  offscreenCanvas.height = canvas.height;
+
+  const offscreenContext = offscreenCanvas.getContext("2d");
+  offscreenContext.drawImage(canvas, 0, 0);
+
+  const imageData = offscreenContext.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+  const pixels = imageData.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    pixels[index] = 255 - pixels[index];
+    pixels[index + 1] = 255 - pixels[index + 1];
+    pixels[index + 2] = 255 - pixels[index + 2];
+  }
+
+  offscreenContext.putImageData(imageData, 0, 0);
+  return offscreenCanvas.toDataURL("image/png");
 }
 
 function renderPlaceholder() {
@@ -170,7 +262,7 @@ async function predict() {
   statusEl.textContent = "Running inference...";
 
   try {
-    const imageData = canvas.toDataURL("image/png");
+    const imageData = getImageForPrediction();
     const modelType = modelTypeSelect.value;
     resultsGridEl.innerHTML = "";
 
@@ -205,5 +297,26 @@ canvas.addEventListener("touchend", stopDrawing);
 predictBtn.addEventListener("click", predict);
 clearBtn.addEventListener("click", clearCanvas);
 
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    userOverrodeTheme = true;
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    invertCanvasPixels();
+    updateCanvasDrawingStyles();
+  });
+}
+
+darkSchemeQuery.addEventListener("change", (event) => {
+  if (userOverrodeTheme) {
+    return;
+  }
+
+  setTheme(event.matches ? "dark" : "light");
+  invertCanvasPixels();
+  updateCanvasDrawingStyles();
+});
+
+setTheme(darkSchemeQuery.matches ? "dark" : "light");
 resizeCanvas();
 renderPlaceholder();
