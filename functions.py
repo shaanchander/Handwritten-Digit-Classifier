@@ -1,11 +1,14 @@
 import torch
 from torch import nn
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 MNIST_MEAN = (0.1307,)
 MNIST_STD = (0.3081,)
+MNIST_IMAGE_SIZE = 28
+MNIST_DIGIT_TARGET_SIZE = 22
+FOREGROUND_THRESHOLD = 40	# just in case there's aliasing or anything
 
 
 class DigitClassifier(nn.Module):
@@ -71,10 +74,37 @@ def get_predict_transform() -> transforms.Compose:
 	])
 
 
+def _mnist_resample_mode() -> int:
+	return getattr(Image, "Resampling", Image).LANCZOS
+
+
+def _extract_centered_digit(image: Image.Image) -> Image.Image:
+	grayscale = image.convert("L")
+
+	# canvas uses dark ink on white background, need to invert to match MNIST
+	inverted = ImageOps.invert(grayscale)
+	mask = inverted.point(lambda value: 255 if value > FOREGROUND_THRESHOLD else 0)
+	bbox = mask.getbbox()
+
+	if bbox is None:
+		return Image.new("L", (MNIST_IMAGE_SIZE, MNIST_IMAGE_SIZE), color=0)
+
+	digit = inverted.crop(bbox)
+	width, height = digit.size
+	longest_side = max(width, height)
+	scale = MNIST_DIGIT_TARGET_SIZE / float(longest_side)
+	resized_width = max(1, int(round(width * scale)))
+	resized_height = max(1, int(round(height * scale)))
+	resized_digit = digit.resize((resized_width, resized_height), _mnist_resample_mode())
+
+	canvas = Image.new("L", (MNIST_IMAGE_SIZE, MNIST_IMAGE_SIZE), color=0)
+	left = (MNIST_IMAGE_SIZE - resized_width) // 2
+	top = (MNIST_IMAGE_SIZE - resized_height) // 2
+	canvas.paste(resized_digit, (left, top))
+	return canvas
+
+
 def prepare_prediction_image(image: Image.Image) -> torch.Tensor:
-	image = image.convert("L")
-	image = image.resize((28, 28))
+	image = _extract_centered_digit(image)
 	image_tensor = transforms.ToTensor()(image)
-	if image_tensor.mean() > 0.5:
-		image_tensor = 1.0 - image_tensor
 	return transforms.Normalize(MNIST_MEAN, MNIST_STD)(image_tensor)
