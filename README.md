@@ -5,3 +5,4 @@ TODO
     - early stopping (stop when improvement stops)
     - augmentation?
 - add favicon?
+- make .pt models output to static directory
