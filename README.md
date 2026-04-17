@@ -6,3 +6,4 @@ TODO
 - general model improvements
     - early stopping (stop when improvement stops)
     - augmentation?
+- add favicon?

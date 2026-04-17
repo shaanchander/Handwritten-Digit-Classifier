@@ -1,9 +1,7 @@
 const canvas = document.getElementById("canvas");
 const context = canvas.getContext("2d");
-const modelTypeSelect = document.getElementById("modelType");
 const predictBtn = document.getElementById("predictBtn");
 const clearBtn = document.getElementById("clearBtn");
-const statusEl = document.getElementById("status");
 const resultsGridEl = document.getElementById("resultsGrid");
 const themeToggleBtn = document.getElementById("theme-toggle") || document.getElementById("themeToggle");
 const darkSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -109,7 +107,6 @@ function stopDrawing() {
 
 function clearCanvas() {
   resizeCanvas();
-  statusEl.textContent = "Ready.";
   renderPlaceholder();
 }
 
@@ -162,6 +159,17 @@ function getImageForPrediction() {
 
 function renderPlaceholder() {
   resultsGridEl.innerHTML = "";
+  const labels = ["CNN", "FCNN"];
+
+  labels.forEach((label) => {
+    const placeholder = {
+      prediction: "-",
+      confidence: 0,
+      probabilities: Array.from({ length: 10 }, () => 0),
+      isPlaceholder: true,
+    };
+    resultsGridEl.appendChild(renderModelResult(label, placeholder));
+  });
 }
 
 function createMetric(labelText, valueText) {
@@ -180,7 +188,7 @@ function createMetric(labelText, valueText) {
   return block;
 }
 
-function createDistributionChart(probabilities) {
+function createDistributionChart(probabilities, { placeholder = false } = {}) {
   const chart = document.createElement("div");
   chart.className = "dist-chart";
 
@@ -190,14 +198,14 @@ function createDistributionChart(probabilities) {
 
     const pct = document.createElement("div");
     pct.className = "dist-pct";
-    pct.textContent = `${(probability * 100).toFixed(0)}%`;
+    pct.textContent = placeholder ? "" : `${(probability * 100).toFixed(0)}%`;
 
     const barWrap = document.createElement("div");
     barWrap.className = "dist-bar-wrap";
 
     const bar = document.createElement("div");
     bar.className = "dist-bar";
-    bar.style.height = `${Math.max(probability * 100, 2)}%`;
+    bar.style.height = placeholder ? "0%" : `${Math.max(probability * 100, 2)}%`;
     barWrap.appendChild(bar);
 
     const digitLabel = document.createElement("div");
@@ -228,11 +236,16 @@ function renderModelResult(modelLabel, result) {
   const metrics = document.createElement("div");
   metrics.className = "metric-row";
   metrics.appendChild(createMetric("Prediction", String(result.prediction)));
-  metrics.appendChild(createMetric("Confidence", `${(result.confidence * 100).toFixed(1)}%`));
+  metrics.appendChild(
+    createMetric(
+      "Confidence",
+      result.isPlaceholder ? "-" : `${(result.confidence * 100).toFixed(1)}%`,
+    ),
+  );
 
   card.appendChild(header);
   card.appendChild(metrics);
-  card.appendChild(createDistributionChart(result.probabilities));
+  card.appendChild(createDistributionChart(result.probabilities, { placeholder: Boolean(result.isPlaceholder) }));
   return card;
 }
 
@@ -254,33 +267,23 @@ async function requestPrediction(modelType, imageData) {
 
 async function predict() {
   if (isCanvasBlank()) {
-    statusEl.textContent = "Draw a digit before predicting.";
     return;
   }
 
   predictBtn.disabled = true;
-  statusEl.textContent = "Running inference...";
 
   try {
     const imageData = getImageForPrediction();
-    const modelType = modelTypeSelect.value;
-    resultsGridEl.innerHTML = "";
+    const [cnnResult, fcnnResult] = await Promise.all([
+      requestPrediction("cnn", imageData),
+      requestPrediction("fcnn", imageData),
+    ]);
 
-    if (modelType === "both") {
-      const [cnnResult, fcnnResult] = await Promise.all([
-        requestPrediction("cnn", imageData),
-        requestPrediction("fcnn", imageData),
-      ]);
-      resultsGridEl.appendChild(renderModelResult("CNN", cnnResult));
-      resultsGridEl.appendChild(renderModelResult("FCNN", fcnnResult));
-    } else {
-      const result = await requestPrediction(modelType, imageData);
-      const label = modelType === "cnn" ? "CNN" : "FCNN";
-      resultsGridEl.appendChild(renderModelResult(label, result));
-    }
-    statusEl.textContent = "Ready.";
+    const cnnCard = renderModelResult("CNN", cnnResult);
+    const fcnnCard = renderModelResult("FCNN", fcnnResult);
+    resultsGridEl.replaceChildren(cnnCard, fcnnCard);
   } catch (error) {
-    statusEl.textContent = error.message;
+    console.error(error);
   } finally {
     predictBtn.disabled = false;
   }
