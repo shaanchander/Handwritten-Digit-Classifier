@@ -8,8 +8,8 @@ const themeToggleBtn = document.getElementById("theme-toggle") || document.getEl
 const darkSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 const MODEL_PATHS = {
-  cnn: "/static/models/model-cnn.onnx",
-  fcnn: "/static/models/model-fcnn.onnx",
+  cnn: "models/model-cnn.onnx",
+  fcnn: "models/model-fcnn.onnx",
 };
 
 const MNIST_MEAN = 0.1307;
@@ -28,6 +28,27 @@ let modelSessions = {
   cnn: null,
   fcnn: null,
 };
+
+function decodeBase64ToUint8Array(base64) {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function createInferenceSession(modelType) {
+  const options = { executionProviders: ["wasm"] };
+  const embeddedModel = window.EMBEDDED_MODELS?.[modelType];
+
+  if (embeddedModel) {
+    const modelBytes = decodeBase64ToUint8Array(embeddedModel);
+    return window.ort.InferenceSession.create(modelBytes, options);
+  }
+
+  return window.ort.InferenceSession.create(MODEL_PATHS[modelType], options);
+}
 
 function setModelStatus(message, state = "loading") {
   if (!modelStatusEl) {
@@ -428,8 +449,8 @@ async function initializeModels() {
 
   try {
     const [cnn, fcnn] = await Promise.all([
-      window.ort.InferenceSession.create(MODEL_PATHS.cnn, { executionProviders: ["wasm"] }),
-      window.ort.InferenceSession.create(MODEL_PATHS.fcnn, { executionProviders: ["wasm"] }),
+      createInferenceSession("cnn"),
+      createInferenceSession("fcnn"),
     ]);
 
     modelSessions = { cnn, fcnn };
