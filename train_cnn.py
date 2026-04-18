@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import datasets
+from pathlib import Path
 
 from functions import get_device, get_mnist_transform
 
@@ -9,7 +10,7 @@ from functions import get_device, get_mnist_transform
 EPOCHS = 5
 BATCH_SIZE = 64
 LEARNING_RATE = 1e-3
-SAVE_PATH = "model-cnn.pt"
+SAVE_PATH = Path("static/models/model-cnn.pt")
 
 
 class DigitCNN(nn.Module):
@@ -115,6 +116,7 @@ def main() -> None:
 			f"test_loss: {test_loss:.4f} test_acc: {test_acc:.4f}"
 		)
 
+	SAVE_PATH.parent.mkdir(parents=True, exist_ok=True)
 	torch.save(model.state_dict(), SAVE_PATH)
 	print(f"Saved model weights to {SAVE_PATH}")
 

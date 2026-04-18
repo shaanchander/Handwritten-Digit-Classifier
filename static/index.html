@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Digit Classifier</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="app-shell">
@@ -23,8 +23,13 @@
     <div class="content-grid">
       <section class="left-column">
         <section class="panel controls">
-          <div class="mode-pill" aria-label="Prediction mode">
-            Comparing CNN + FCNN
+          <div class="controls-meta">
+            <div class="mode-pill" aria-label="Prediction mode">
+              Comparing CNN + FCNN
+            </div>
+            <p id="modelStatus" class="model-status" role="status" aria-live="polite">
+              Loading models into your browser...
+            </p>
           </div>
           <div class="actions">
             <button id="predictBtn">Predict</button>
@@ -48,7 +53,9 @@
       </section>
     </div>
   </main>
-
-  <script src="/static/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <script src="models/model-cnn.onnx.b64.js"></script>
+  <script src="models/model-fcnn.onnx.b64.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

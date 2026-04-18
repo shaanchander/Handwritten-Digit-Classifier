@@ -3,12 +3,65 @@ const context = canvas.getContext("2d");
 const predictBtn = document.getElementById("predictBtn");
 const clearBtn = document.getElementById("clearBtn");
 const resultsGridEl = document.getElementById("resultsGrid");
+const modelStatusEl = document.getElementById("modelStatus");
 const themeToggleBtn = document.getElementById("theme-toggle") || document.getElementById("themeToggle");
 const darkSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+const MODEL_PATHS = {
+  cnn: "models/model-cnn.onnx",
+  fcnn: "models/model-fcnn.onnx",
+};
+
+const MNIST_MEAN = 0.1307;
+const MNIST_STD = 0.3081;
+const MNIST_IMAGE_SIZE = 28;
+const MNIST_DIGIT_TARGET_SIZE = 22;
+const FOREGROUND_THRESHOLD = 40;
+const NORMALIZED_BLACK = (0 - MNIST_MEAN) / MNIST_STD;
 
 let drawing = false;
 let currentTheme = "light";
 let userOverrodeTheme = false;
+let modelsLoaded = false;
+let predictionInFlight = false;
+let modelSessions = {
+  cnn: null,
+  fcnn: null,
+};
+
+function decodeBase64ToUint8Array(base64) {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function createInferenceSession(modelType) {
+  const options = { executionProviders: ["wasm"] };
+  const embeddedModel = window.EMBEDDED_MODELS?.[modelType];
+
+  if (embeddedModel) {
+    const modelBytes = decodeBase64ToUint8Array(embeddedModel);
+    return window.ort.InferenceSession.create(modelBytes, options);
+  }
+
+  return window.ort.InferenceSession.create(MODEL_PATHS[modelType], options);
+}
+
+function setModelStatus(message, state = "loading") {
+  if (!modelStatusEl) {
+    return;
+  }
+
+  modelStatusEl.textContent = message;
+  modelStatusEl.dataset.state = state;
+}
+
+function setPredictEnabled(enabled) {
+  predictBtn.disabled = !enabled;
+}
 
 function setTheme(theme) {
   currentTheme = theme;
@@ -108,6 +161,10 @@ function stopDrawing() {
 function clearCanvas() {
   resizeCanvas();
   renderPlaceholder();
+  setModelStatus(
+    modelsLoaded ? "Ready. Inference runs entirely in your browser." : "Loading models into your browser...",
+    modelsLoaded ? "ready" : "loading",
+  );
 }
 
 function isCanvasBlank() {
@@ -134,16 +191,16 @@ function isCanvasBlank() {
 }
 
 function getImageForPrediction() {
-  if (currentTheme !== "dark") {
-    return canvas.toDataURL("image/png");
-  }
-
   const offscreenCanvas = document.createElement("canvas");
   offscreenCanvas.width = canvas.width;
   offscreenCanvas.height = canvas.height;
 
   const offscreenContext = offscreenCanvas.getContext("2d");
   offscreenContext.drawImage(canvas, 0, 0);
+
+  if (currentTheme !== "dark") {
+    return offscreenCanvas;
+  }
 
   const imageData = offscreenContext.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height);
   const pixels = imageData.data;
@@ -154,7 +211,7 @@ function getImageForPrediction() {
   }
 
   offscreenContext.putImageData(imageData, 0, 0);
-  return offscreenCanvas.toDataURL("image/png");
+  return offscreenCanvas;
 }
 
 function renderPlaceholder() {
@@ -249,43 +306,223 @@ function renderModelResult(modelLabel, result) {
   return card;
 }
 
-async function requestPrediction(modelType, imageData) {
-  const response = await fetch(`/predict/${modelType}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ image: imageData }),
-  });
+function softmax(logits) {
+  const maxLogit = Math.max(...logits);
+  const exps = logits.map((value) => Math.exp(value - maxLogit));
+  const sum = exps.reduce((accumulator, value) => accumulator + value, 0);
+  return exps.map((value) => value / sum);
+}
 
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.detail || "Prediction failed");
+function buildInvertedImageData(sourceImageData) {
+  const { width, height, data } = sourceImageData;
+  const invertedPixels = new Uint8ClampedArray(width * height);
+  const outImageData = new ImageData(width, height);
+
+  for (let i = 0; i < width * height; i += 1) {
+    const dataIndex = i * 4;
+    const gray = (data[dataIndex] + data[dataIndex + 1] + data[dataIndex + 2]) / 3;
+    const inverted = 255 - gray;
+
+    invertedPixels[i] = inverted;
+    outImageData.data[dataIndex] = inverted;
+    outImageData.data[dataIndex + 1] = inverted;
+    outImageData.data[dataIndex + 2] = inverted;
+    outImageData.data[dataIndex + 3] = 255;
   }
-  return result;
+
+  return { invertedPixels, imageData: outImageData };
+}
+
+function extractBoundingBox(invertedPixels, width, height) {
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const value = invertedPixels[y * width + x];
+      if (value <= FOREGROUND_THRESHOLD) {
+        continue;
+      }
+
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  if (maxX === -1 || maxY === -1) {
+    return null;
+  }
+
+  return {
+    minX,
+    minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
+}
+
+function getNormalizedTensorFromCanvas(processedCanvas) {
+  const pixels = processedCanvas.getContext("2d").getImageData(0, 0, MNIST_IMAGE_SIZE, MNIST_IMAGE_SIZE).data;
+  const tensor = new Float32Array(MNIST_IMAGE_SIZE * MNIST_IMAGE_SIZE);
+
+  for (let index = 0; index < tensor.length; index += 1) {
+    const value = pixels[index * 4] / 255;
+    tensor[index] = (value - MNIST_MEAN) / MNIST_STD;
+  }
+
+  return tensor;
+}
+
+function buildModelInputTensor() {
+  const predictionCanvas = getImageForPrediction();
+  const sourceCtx = predictionCanvas.getContext("2d");
+  const sourceImageData = sourceCtx.getImageData(0, 0, predictionCanvas.width, predictionCanvas.height);
+  const { invertedPixels, imageData: invertedImageData } = buildInvertedImageData(sourceImageData);
+  const bbox = extractBoundingBox(invertedPixels, predictionCanvas.width, predictionCanvas.height);
+
+  if (!bbox) {
+    const blankTensor = new Float32Array(MNIST_IMAGE_SIZE * MNIST_IMAGE_SIZE);
+    blankTensor.fill(NORMALIZED_BLACK);
+    return blankTensor;
+  }
+
+  const invertedCanvas = document.createElement("canvas");
+  invertedCanvas.width = predictionCanvas.width;
+  invertedCanvas.height = predictionCanvas.height;
+  const invertedCtx = invertedCanvas.getContext("2d");
+  invertedCtx.putImageData(invertedImageData, 0, 0);
+
+  const longestSide = Math.max(bbox.width, bbox.height);
+  const scale = MNIST_DIGIT_TARGET_SIZE / longestSide;
+  const resizedWidth = Math.max(1, Math.round(bbox.width * scale));
+  const resizedHeight = Math.max(1, Math.round(bbox.height * scale));
+
+  const digitCanvas = document.createElement("canvas");
+  digitCanvas.width = resizedWidth;
+  digitCanvas.height = resizedHeight;
+  const digitCtx = digitCanvas.getContext("2d");
+  digitCtx.imageSmoothingEnabled = true;
+  digitCtx.imageSmoothingQuality = "high";
+  digitCtx.drawImage(
+    invertedCanvas,
+    bbox.minX,
+    bbox.minY,
+    bbox.width,
+    bbox.height,
+    0,
+    0,
+    resizedWidth,
+    resizedHeight,
+  );
+
+  const normalizedCanvas = document.createElement("canvas");
+  normalizedCanvas.width = MNIST_IMAGE_SIZE;
+  normalizedCanvas.height = MNIST_IMAGE_SIZE;
+  const normalizedCtx = normalizedCanvas.getContext("2d");
+  normalizedCtx.fillStyle = "black";
+  normalizedCtx.fillRect(0, 0, MNIST_IMAGE_SIZE, MNIST_IMAGE_SIZE);
+
+  const left = Math.floor((MNIST_IMAGE_SIZE - resizedWidth) / 2);
+  const top = Math.floor((MNIST_IMAGE_SIZE - resizedHeight) / 2);
+  normalizedCtx.drawImage(digitCanvas, left, top);
+
+  return getNormalizedTensorFromCanvas(normalizedCanvas);
+}
+
+async function initializeModels() {
+  if (!window.ort) {
+    setModelStatus("Could not load ONNX Runtime. Refresh to try again.", "error");
+    setPredictEnabled(false);
+    return;
+  }
+
+  if (window.ort.env?.wasm) {
+    window.ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+  }
+
+  setModelStatus("Loading models into your browser...", "loading");
+  setPredictEnabled(false);
+
+  try {
+    const [cnn, fcnn] = await Promise.all([
+      createInferenceSession("cnn"),
+      createInferenceSession("fcnn"),
+    ]);
+
+    modelSessions = { cnn, fcnn };
+    modelsLoaded = true;
+    setPredictEnabled(true);
+    setModelStatus("Ready. Inference runs entirely in your browser.", "ready");
+  } catch (error) {
+    console.error(error);
+    setModelStatus("Model loading failed. Check console/network and refresh.", "error");
+    setPredictEnabled(false);
+  }
+}
+
+async function runLocalPrediction(modelType, inputData) {
+  const session = modelSessions[modelType];
+  if (!session) {
+    throw new Error(`Model session not loaded: ${modelType}`);
+  }
+
+  const inputTensor = new window.ort.Tensor("float32", inputData, [1, 1, MNIST_IMAGE_SIZE, MNIST_IMAGE_SIZE]);
+  const outputs = await session.run({ input: inputTensor });
+  const logitsTensor = outputs.logits || Object.values(outputs)[0];
+
+  if (!logitsTensor?.data) {
+    throw new Error(`No logits returned from ${modelType} model`);
+  }
+
+  const probabilities = softmax(Array.from(logitsTensor.data));
+  const prediction = probabilities.reduce(
+    (bestIndex, value, index, array) => (value > array[bestIndex] ? index : bestIndex),
+    0,
+  );
+
+  return {
+    prediction,
+    confidence: probabilities[prediction],
+    probabilities,
+  };
 }
 
 async function predict() {
+  if (predictionInFlight) {
+    return;
+  }
+
+  if (!modelsLoaded) {
+    return;
+  }
+
   if (isCanvasBlank()) {
     return;
   }
 
+  predictionInFlight = true;
   predictBtn.disabled = true;
+  setModelStatus("Running inference in your browser...", "loading");
 
   try {
-    const imageData = getImageForPrediction();
-    const [cnnResult, fcnnResult] = await Promise.all([
-      requestPrediction("cnn", imageData),
-      requestPrediction("fcnn", imageData),
-    ]);
+    const inputTensorData = buildModelInputTensor();
+    const cnnResult = await runLocalPrediction("cnn", inputTensorData);
+    const fcnnResult = await runLocalPrediction("fcnn", inputTensorData);
 
     const cnnCard = renderModelResult("CNN", cnnResult);
     const fcnnCard = renderModelResult("FCNN", fcnnResult);
     resultsGridEl.replaceChildren(cnnCard, fcnnCard);
+    setModelStatus("Ready. Inference runs entirely in your browser.", "ready");
   } catch (error) {
     console.error(error);
+    setModelStatus("Inference failed. Check console for details.", "error");
   } finally {
-    predictBtn.disabled = false;
+    predictionInFlight = false;
+    setPredictEnabled(modelsLoaded);
   }
 }
 
@@ -323,3 +560,6 @@ darkSchemeQuery.addEventListener("change", (event) => {
 setTheme(darkSchemeQuery.matches ? "dark" : "light");
 resizeCanvas();
 renderPlaceholder();
+setPredictEnabled(false);
+setModelStatus("Loading models into your browser...", "loading");
+void initializeModels();

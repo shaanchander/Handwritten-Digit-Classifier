@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import datasets
+from pathlib import Path
 
 from functions import DigitClassifier, get_device, get_mnist_transform
 
@@ -9,7 +10,7 @@ from functions import DigitClassifier, get_device, get_mnist_transform
 EPOCHS = 5
 BATCH_SIZE = 64
 LEARNING_RATE = 1e-3
-SAVE_PATH = "model-fcnn.pt"
+SAVE_PATH = Path("static/models/model-fcnn.pt")
 
 
 def train_one_epoch(model: nn.Module, loader: DataLoader, loss_fn: nn.Module, optimizer: torch.optim.Optimizer, device: torch.device) -> tuple[float, float]:
@@ -94,6 +95,7 @@ def main() -> None:
             f"test_loss: {test_loss:.4f} test_acc: {test_acc:.4f}"
         )
 
+    SAVE_PATH.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), SAVE_PATH)
     print(f"Saved model weights to {SAVE_PATH}")
 
