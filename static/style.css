@@ -107,6 +107,12 @@ p {
   gap: 14px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .eyebrow {
   font-size: 0.74rem;
   line-height: 1;
@@ -136,6 +142,29 @@ p {
   transition: transform 140ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
+.icon-link {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  transition: transform 140ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.icon-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px color-mix(in hsl, var(--ring) 24%, transparent);
+}
+
+.icon-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in hsl, var(--ring) 34%, transparent);
+}
+
 .theme-toggle:hover {
   transform: translateY(-1px);
   box-shadow: 0 0 0 3px color-mix(in hsl, var(--ring) 24%, transparent);
@@ -152,6 +181,20 @@ p {
   display: block;
 }
 
+.github-icon {
+  fill: currentColor;
+}
+
+.github-icon-light {
+  display: none;
+  fill: hsl(210 40% 98%);
+}
+
+.github-icon-dark {
+  display: block;
+  fill: hsl(222 47% 11%);
+}
+
 .theme-sun {
   fill: none;
   stroke: currentColor;
@@ -165,6 +208,14 @@ p {
 }
 
 :root[data-theme="dark"] .theme-sun {
+  display: none;
+}
+
+:root[data-theme="dark"] .github-icon-light {
+  display: block;
+}
+
+:root[data-theme="dark"] .github-icon-dark {
   display: none;
 }
 
