@@ -12,6 +12,8 @@ const MODEL_PATHS = {
   fcnn: "models/model-fcnn.onnx",
 };
 
+const ORT_CDN_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/";
+
 const MNIST_MEAN = 0.1307;
 const MNIST_STD = 0.3081;
 const MNIST_IMAGE_SIZE = 28;
@@ -28,6 +30,11 @@ let modelSessions = {
   cnn: null,
   fcnn: null,
 };
+
+const WASM_LOAD_PROFILES = [
+  { label: "single-thread-no-simd", numThreads: 1, simd: false },
+  { label: "single-thread-simd", numThreads: 1, simd: true },
+];
 
 function decodeBase64ToUint8Array(base64) {
   const binary = window.atob(base64);
@@ -48,6 +55,24 @@ async function createInferenceSession(modelType) {
   }
 
   return window.ort.InferenceSession.create(MODEL_PATHS[modelType], options);
+}
+
+function applyWasmLoadProfile(profile) {
+  const wasmEnv = window.ort?.env?.wasm;
+  if (!wasmEnv) {
+    return;
+  }
+
+  wasmEnv.proxy = false;
+  wasmEnv.numThreads = profile.numThreads;
+  wasmEnv.simd = profile.simd;
+}
+
+async function createModelSessionsSequentially() {
+  // Loading sessions one-by-one avoids large peak memory usage from parallel creation.
+  const cnn = await createInferenceSession("cnn");
+  const fcnn = await createInferenceSession("fcnn");
+  return { cnn, fcnn };
 }
 
 function setModelStatus(message, state = "loading") {
@@ -162,7 +187,7 @@ function clearCanvas() {
   resizeCanvas();
   renderPlaceholder();
   setModelStatus(
-    modelsLoaded ? "Ready. Inference runs entirely in your browser." : "Loading models into your browser...",
+    modelsLoaded ? "Ready for Inference." : "Loading models into your browser...",
     modelsLoaded ? "ready" : "loading",
   );
 }
@@ -441,27 +466,32 @@ async function initializeModels() {
   }
 
   if (window.ort.env?.wasm) {
-    window.ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+    window.ort.env.wasm.wasmPaths = ORT_CDN_BASE;
   }
 
   setModelStatus("Loading models into your browser...", "loading");
   setPredictEnabled(false);
 
-  try {
-    const [cnn, fcnn] = await Promise.all([
-      createInferenceSession("cnn"),
-      createInferenceSession("fcnn"),
-    ]);
+  let lastError = null;
 
-    modelSessions = { cnn, fcnn };
-    modelsLoaded = true;
-    setPredictEnabled(true);
-    setModelStatus("Ready. Inference runs entirely in your browser.", "ready");
-  } catch (error) {
-    console.error(error);
-    setModelStatus("Model loading failed. Check console/network and refresh.", "error");
-    setPredictEnabled(false);
+  for (const profile of WASM_LOAD_PROFILES) {
+    applyWasmLoadProfile(profile);
+
+    try {
+      modelSessions = await createModelSessionsSequentially();
+      modelsLoaded = true;
+      setPredictEnabled(true);
+      setModelStatus("Ready for Inference.", "ready");
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Model load attempt failed with ${profile.label}.`, error);
+    }
   }
+
+  console.error(lastError);
+  setModelStatus("Model loading failed. Check console/network and refresh.", "error");
+  setPredictEnabled(false);
 }
 
 async function runLocalPrediction(modelType, inputData) {
@@ -516,7 +546,7 @@ async function predict() {
     const cnnCard = renderModelResult("CNN", cnnResult);
     const fcnnCard = renderModelResult("FCNN", fcnnResult);
     resultsGridEl.replaceChildren(cnnCard, fcnnCard);
-    setModelStatus("Ready. Inference runs entirely in your browser.", "ready");
+    setModelStatus("Ready for Inference.", "ready");
   } catch (error) {
     console.error(error);
     setModelStatus("Inference failed. Check console for details.", "error");

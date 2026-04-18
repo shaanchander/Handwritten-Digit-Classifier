@@ -4,12 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Digit Classifier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="app-shell">
-    <section class="hero">
-      <h1>Handwritten Digit Prediction</h1>
+    <section class="card app-header">
+      <div>
+        <h1>Handwritten Digit Prediction</h1>
+      </div>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false" title="Switch to dark mode">
         <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M20 14.2A8 8 0 0 1 9.8 4a8 8 0 1 0 10.2 10.2Z"></path>
@@ -22,10 +27,10 @@
 
     <div class="content-grid">
       <section class="left-column">
-        <section class="panel controls">
+        <section class="card controls">
           <div class="controls-meta">
             <div class="mode-pill" aria-label="Prediction mode">
-              Comparing CNN + FCNN
+              Comparing CNN and FCNN Models
             </div>
             <p id="modelStatus" class="model-status" role="status" aria-live="polite">
               Loading models into your browser...
@@ -37,23 +42,42 @@
           </div>
         </section>
 
-        <section class="panel workspace">
+        <section class="card workspace">
           <canvas id="canvas" width="280" height="280"></canvas>
           <div class="hint">Draw a single digit with your mouse or trackpad.</div>
         </section>
       </section>
 
-      <section class="panel results">
+      <section class="card results">
+        <div class="results-head">
+          <h2>Predictions</h2>
+        </div>
         <div id="resultsGrid" class="results-grid"></div>
-        <p class="model-note">
-          CNNs use local filters to detect stroke patterns and spatial structure, while FCNNs flatten pixels and treat each input value independently.
-          For handwritten digits, CNNs usually perform better because they preserve shape and position cues.
-          The FCNN option is included as a baseline so you can compare how architecture choice affects results.
-        </p>
       </section>
     </div>
+
+    <section class="card explain">
+      <div class="explain-grid">
+        <article>
+          <h2>Model architectures</h2>
+          <p class="model-note">
+            CNNs use local filters to detect stroke patterns and spatial structure, while FCNNs flatten pixels and treat each input value independently.
+            For handwritten digits, CNNs usually perform better because they preserve shape and position cues.
+            The FCNN option is included as a baseline so you can compare how architecture choice affects results.
+          </p>
+        </article>
+
+        <article>
+          <h2>Running PyTorch models run in your browser</h2>
+          <p class="onnx-note">
+            The original models are trained and saved as PyTorch checkpoints (.pt), then converted to ONNX (.onnx).
+            In the browser, ONNX Runtime Web loads those ONNX model bytes and runs inference client-side, so predictions happen directly on your machine.
+          </p>
+        </article>
+      </div>
+    </section>
   </main>
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
   <script src="models/model-cnn.onnx.b64.js"></script>
   <script src="models/model-fcnn.onnx.b64.js"></script>
   <script src="app.js"></script>
