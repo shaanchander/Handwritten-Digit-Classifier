@@ -4,28 +4,50 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Digit Classifier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="app-shell">
-    <section class="hero">
-      <h1>Handwritten Digit Prediction</h1>
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false" title="Switch to dark mode">
-        <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M20 14.2A8 8 0 0 1 9.8 4a8 8 0 1 0 10.2 10.2Z"></path>
-        </svg>
-        <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M12 4V2M12 22v-2M4 12H2M22 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M17.7 6.3l1.4-1.4M4.9 19.1l1.4-1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"></path>
-        </svg>
-      </button>
+    <section class="card app-header">
+      <div>
+        <h1>Handwritten Digit Prediction</h1>
+      </div>
+      <div class="header-actions">
+        <a
+          class="icon-link"
+          href="https://github.com/shaanchander/Handwritten-Digit-Classifier"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open project repository on GitHub"
+          title="Open project repository on GitHub"
+        >
+          <svg class="theme-icon github-icon github-icon-dark" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M8 0C3.58 0 0 3.58 0 8a8.01 8.01 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.34c-2.01.44-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52 0-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.58.82-2.13-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.48 7.48 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.55.82 1.26.82 2.13 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
+          </svg>
+          <svg class="theme-icon github-icon github-icon-light" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M8 0C3.58 0 0 3.58 0 8a8.01 8.01 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.34c-2.01.44-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52 0-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.58.82-2.13-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.48 7.48 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.55.82 1.26.82 2.13 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
+          </svg>
+        </a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false" title="Switch to dark mode">
+          <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M20 14.2A8 8 0 0 1 9.8 4a8 8 0 1 0 10.2 10.2Z"></path>
+          </svg>
+          <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 4V2M12 22v-2M4 12H2M22 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M17.7 6.3l1.4-1.4M4.9 19.1l1.4-1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"></path>
+          </svg>
+        </button>
+      </div>
     </section>
 
     <div class="content-grid">
       <section class="left-column">
-        <section class="panel controls">
+        <section class="card controls">
           <div class="controls-meta">
             <div class="mode-pill" aria-label="Prediction mode">
-              Comparing CNN + FCNN
+              Comparing CNN and FCNN Models
             </div>
             <p id="modelStatus" class="model-status" role="status" aria-live="polite">
               Loading models into your browser...
@@ -37,23 +59,42 @@
           </div>
         </section>
 
-        <section class="panel workspace">
+        <section class="card workspace">
           <canvas id="canvas" width="280" height="280"></canvas>
           <div class="hint">Draw a single digit with your mouse or trackpad.</div>
         </section>
       </section>
 
-      <section class="panel results">
+      <section class="card results">
+        <div class="results-head">
+          <h2>Predictions</h2>
+        </div>
         <div id="resultsGrid" class="results-grid"></div>
-        <p class="model-note">
-          CNNs use local filters to detect stroke patterns and spatial structure, while FCNNs flatten pixels and treat each input value independently.
-          For handwritten digits, CNNs usually perform better because they preserve shape and position cues.
-          The FCNN option is included as a baseline so you can compare how architecture choice affects results.
-        </p>
       </section>
     </div>
+
+    <section class="card explain">
+      <div class="explain-grid">
+        <article>
+          <h2>Model architectures</h2>
+          <p class="model-note">
+            CNNs use local filters to detect stroke patterns and spatial structure, while FCNNs flatten pixels and treat each input value independently.
+            For handwritten digits, CNNs usually perform better because they preserve shape and position cues.
+            The FCNN option is included as a baseline so you can compare how architecture choice affects results.
+          </p>
+        </article>
+
+        <article>
+          <h2>Running PyTorch models run in your browser</h2>
+          <p class="onnx-note">
+            The original models are trained and saved as PyTorch checkpoints (.pt), then converted to ONNX (.onnx).
+            In the browser, ONNX Runtime Web loads those ONNX model bytes and runs inference client-side, so predictions happen directly on your machine.
+          </p>
+        </article>
+      </div>
+    </section>
   </main>
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
   <script src="models/model-cnn.onnx.b64.js"></script>
   <script src="models/model-fcnn.onnx.b64.js"></script>
   <script src="app.js"></script>
