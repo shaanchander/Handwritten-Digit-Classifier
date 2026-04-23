@@ -2,6 +2,8 @@
 
 Train MNIST digit classifiers in PyTorch, export to ONNX, and run inference fully in the browser
 
+Live demo: https://digits.shaanchander.ca
+
 ## Background
 
 This repo compares two model types for handwritten digit recognition:
